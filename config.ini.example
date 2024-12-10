@@ -1,0 +1,16 @@
+[FTP_ORIGEN]
+host = ftp.example.com
+user = your_ftp_username
+passwd = your_ftp_password
+
+[SFTP_DESTINO_MYS]
+host = sftp1.example.com
+user = your_sftp1_username
+passwd = your_sftp1_password
+port = 22
+
+[SFTP_DESTINO_FDM]
+host = sftp2.example.com
+user = your_sftp2_username
+passwd = your_sftp2_password
+port = 22

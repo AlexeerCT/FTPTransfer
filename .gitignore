@@ -1,0 +1,48 @@
+# Entornos virtuales
+venv/
+env/
+.venv/
+.env/
+
+# Archivos generados por Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Configuraciones de entorno y claves
+.env
+*.env
+config.ini
+
+# Archivos de logs
+*.log
+*.out
+*.err
+
+# Archivos temporales o de desarrollo
+*.swp
+*.swo
+*.bak
+*.tmp
+*.DS_Store
+*.~lock.*
+
+# Configuración de IDEs y editores de texto
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Archivos generados por herramientas
+dist/
+build/
+*.egg-info/
+.eggs/
+coverage/
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Configuración de Docker y otros contenedores (opcional)
+*.dockerfile
+docker-compose.override.yml
