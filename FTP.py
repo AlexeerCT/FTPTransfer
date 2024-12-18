@@ -3,7 +3,17 @@ import ftplib
 import paramiko
 import os
 import time
-from datetime import datetime
+import logging
+from datetime import datetime, timedelta
+
+# Configurar logging
+log_filename = f"transferencias_{datetime.now().strftime('%Y%m%d')}.log"
+logging.basicConfig(
+    filename=log_filename,
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
+logging.info("Inicio del programa")
 
 # Leer archivo .ini
 config = configparser.ConfigParser(interpolation=None)
@@ -36,71 +46,68 @@ intervalo = 7200
 
 def descargar_desde_ftp(ftp_config, archivo_local, archivo_remoto):
     """Descarga un archivo desde un servidor FTP."""
-    print(f"Conectándose al servidor FTP {ftp_config['host']}...")
+    logging.info(f"Conectándose al servidor FTP {ftp_config['host']}...")
     with ftplib.FTP(ftp_config["host"]) as ftp:
         ftp.login(ftp_config["user"], ftp_config["passwd"])
-        print("Conexión exitosa. Descargando archivo...")
-        with open(archivo_local, "wb") as archivo:
-            ftp.retrbinary(f"RETR {archivo_remoto}", archivo.write)
-        print(f"Archivo descargado correctamente: {archivo_local}")
-
+        logging.info("Conexión exitosa. Intentando descargar archivo...")
+        try:
+            with open(archivo_local, "wb") as archivo:
+                ftp.retrbinary(f"RETR {archivo_remoto}", archivo.write)
+            logging.info(f"Archivo descargado correctamente: {archivo_local}")
+            ftp.delete(archivo_remoto)
+            logging.info(f"Archivo remoto eliminado: {archivo_remoto}")
+            return True
+        except ftplib.error_perm as e:
+            logging.warning(f"No se encontró el archivo remoto: {archivo_remoto}. Error: {e}")
+            os.remove(archivo_local)
+            return False
 
 def subir_a_sftp(sftp_config, archivo_zip, remote_path):
     """Sube un archivo ZIP a un servidor SFTP."""
-    print(f"Conectándose al servidor SFTP {sftp_config['host']}...")
+    logging.info(f"Conectándose al servidor SFTP {sftp_config['host']}...")
     transport = paramiko.Transport((sftp_config["host"], sftp_config["port"]))
     transport.connect(username=sftp_config["user"], password=sftp_config["passwd"])
 
     with paramiko.SFTPClient.from_transport(transport) as sftp:
-        print(f"Subiendo {archivo_zip} a {remote_path}...")
+        logging.info(f"Subiendo {archivo_zip} a {remote_path}...")
         sftp.put(archivo_zip, remote_path)
-        print("Archivo subido correctamente.")
+        logging.info("Archivo subido correctamente.")
 
     transport.close()
-
 
 def main():
     """Función principal que gestiona la transferencia."""
     while True:
         try:
             # Calcular la fecha actual
-            fecha_actual = datetime.now().strftime("%Y%m%d")
-            print(f"Fecha actual: {fecha_actual}")
+            fecha_actual = datetime.now()
+            logging.info(f"Fecha actual: {fecha_actual.strftime('%Y%m%d')}")
 
-            # Rutas y nombres de los archivos
-            archivo_local_mys = f"MYSRECON_{fecha_actual}.zip"
-            archivo_local_fdm = f"FDMRECON_{fecha_actual}.zip"
+            # Intentar transferencias para MYS y FDM
+            for prefijo, destino in [("MYSRECON", sftp_destino_mys), ("FDMRECON", sftp_destino_fdm)]:
+                exito = False
+                for dias in range(2):  # Intentar con el día actual y el anterior
+                    fecha = (fecha_actual - timedelta(days=dias)).strftime("%Y%m%d")
+                    archivo_local = f"{prefijo}_{fecha}.zip"
+                    archivo_remoto = f"/Herramientas/IMMEX/GRUPO SION/{prefijo}_{fecha}.zip"
 
-            archivo_remoto_mys = f"/Herramientas/IMMEX/GRUPO SION/MYSRECON_{fecha_actual}.zip"
-            archivo_remoto_fdm = f"/Herramientas/IMMEX/GRUPO SION/FDMRECON_{fecha_actual}.zip"
+                    if descargar_desde_ftp(ftp_origen, archivo_local, archivo_remoto):
+                        remote_path = f"{prefijo}_{fecha}.zip"
+                        subir_a_sftp(destino, archivo_local, remote_path)
+                        os.remove(archivo_local)
+                        logging.info(f"Archivo local eliminado: {archivo_local}")
+                        exito = True
+                        break
 
-            remote_path_mys = f"MYSRECON_{fecha_actual}.zip"
-            remote_path_fdm = f"FDMRECON_{fecha_actual}.zip"
+                if not exito:
+                    logging.warning(f"No se pudo transferir el archivo para {prefijo} en los últimos dos días.")
 
-            print("Iniciando proceso de transferencia...")
-
-            # Descargar los dos archivos desde FTP
-            descargar_desde_ftp(ftp_origen, archivo_local_mys, archivo_remoto_mys)
-            descargar_desde_ftp(ftp_origen, archivo_local_fdm, archivo_remoto_fdm)
-
-            # Subir el primer archivo al primer servidor SFTP
-            subir_a_sftp(sftp_destino_mys, archivo_local_mys, remote_path_mys)
-
-            # Subir el segundo archivo al segundo servidor SFTP
-            subir_a_sftp(sftp_destino_fdm, archivo_local_fdm, remote_path_fdm)
-
-            # Eliminar archivos locales después de la transferencia
-            os.remove(archivo_local_mys)
-            os.remove(archivo_local_fdm)
-            print("Archivos locales eliminados.")
-
-            print("Transferencia completada. Esperando el próximo ciclo...")
+            logging.info("Transferencia completada. Esperando el próximo ciclo...")
         except Exception as e:
-            print(f"Error durante la transferencia: {e}")
+            logging.error(f"Error durante la transferencia: {e}")
 
         # Esperar antes de la siguiente comprobación
         time.sleep(intervalo)
-
 
 if __name__ == "__main__":
     main()
